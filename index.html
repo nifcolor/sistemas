@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>System Network Designer</title>
+<style>
+:root{--bg:#faf9f6;--card:#fff;--ink:#222;--mute:#6b6b6b;--line:#d8d5cc;--acc:#2f6fdb;--accbg:#e6efff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181b;--card:#202226;--ink:#e8e6e1;--mute:#9a9a9a;--line:#3a3d43;--acc:#6ea3ff;--accbg:#27344f}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 auto 0 0}
+button,.btn{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--acc)}
+main{display:grid;grid-template-columns:1fr 320px;gap:14px;padding:14px 16px;align-items:start}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+#cv{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:auto;min-height:320px;max-height:78vh}
+#cv{cursor:grab}.zb{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}#zl{min-width:44px;text-align:center;font-size:13px;color:var(--mute)}
+textarea{width:100%;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);resize:vertical}
+#tip{position:fixed;display:none;z-index:20;max-width:300px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.45;box-shadow:0 4px 18px rgba(0,0,0,.18);pointer-events:none;white-space:pre-wrap}#tip b{display:block;margin-bottom:3px}#tip .tl{margin-top:7px;font-size:13px;color:var(--mute);font-variant:small-caps;text-transform:lowercase;letter-spacing:.05em}#tip .tl:first-of-type{margin-top:0}
+#panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+label{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px}
+input[type=text]{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.sys{border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px}
+.row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.hint{color:var(--mute);font-size:12px;margin-top:12px;line-height:1.5}
+.danger{color:#c0392b}
+svg text{font:15px system-ui,sans-serif;fill:var(--ink)}
+.t{cursor:pointer}
+</style></head><body>
+<header>
+<h1>System Network Designer</h1>
+<select id="nets" class="btn" style="display:none;max-width:230px"><option value="">Open a shared network…</option></select><button id="undo">↶ Undo</button>
+<button id="ex">Example</button>
+<button id="clr">New</button>
+<span class="hint" style="margin:0">Export:</span><button id="svg">SVG</button><button id="png">PNG</button><button id="pdf">PDF</button>
+<button id="js">Save JSON</button>
+<label class="btn" style="margin:0;color:var(--ink);font-size:13px">Load JSON<input id="ld" type="file" accept=".json" hidden></label>
+</header>
+<main>
+<div><div class="zb"><button id="zo">−</button><span id="zl">100%</span><button id="zi">+</button><button id="zf">Fit</button><button id="z1">100%</button><span class="hint" style="margin:0 0 0 6px">Ctrl/⌘ + scroll or pinch to zoom · drag to pan</span></div><div id="cv"></div></div>
+<div id="panel"></div>
+</main>
+<div id="tip"></div>
+<script>
+let z=1,curW=0,curH=0;let uid=1;const nid=()=>'n'+uid++;
+const N=(label,systems=[])=>({id:nid(),label,systems});
+const S=(name,terms)=>({id:nid(),name,terms});
+const example=()=>N('clause',[
+ S('TRANSITIVITY',[N('transitive'),N('intransitive',[S('',[N('scoped'),N('–')])])]),
+ S('MODALITY',[N('modalised',[S('',[N('verbal'),N('adverbial')])]),N('modulated',[S('',[N('verbal'),N('verbal complex')])])])]);
+let root=example(),sel=root.id,hist=[];
+const ctx=document.createElement('canvas').getContext('2d');
+const tw=s=>{ctx.font='15px system-ui,sans-serif';return ctx.measureText(s||'–').width};
+const wrap=n=>{n=n||'';if(n.length<=16||!n.includes(' '))return[n];const w=n.split(' ');let best=1,bd=1e9;for(let i=1;i<w.length;i++){const d=Math.abs(w.slice(0,i).join(' ').length-w.slice(i).join(' ').length);if(d<bd){bd=d;best=i}}return[w.slice(0,best).join(' '),w.slice(best).join(' ')]};
+const ROW=40;let maxX=0;
+const LH=16;
+function layout(t,x){
+ const st=(t.rs||'').split('\n').map(l=>l.trim()).filter(Boolean);t.st=st;
+ t.w=(t===root&&!t.label)?18:tw(t.label)+6;t.sw=st.length?Math.max(...st.map(l=>tw(l)*.93))+22:0;t.ww=Math.max(t.w,t.sw);
+ t.x=x;maxX=Math.max(maxX,x+t.ww);
+ const sh=st.length*LH;
+ if(!t.systems.length){t.h=ROW+sh;t.off=ROW/2;return}
+ let y=0;const n=t.systems.length,an=[];
+ t.systems.forEach(s=>{
+  s.px=t.x+(n>1?t.ww+28:t.w+8);
+  s.bx=Math.max(s.px+Math.max(60,Math.max(...wrap(s.name).map(l=>l.length))*7.5+22),t.x+t.ww+16);
+  const T=s.terms;T.forEach(c=>layout(c,s.bx+28));
+  let D=0;for(let i=0;i<T.length-1;i++)D=Math.max(D,T[i].h-T[i].off+T[i+1].off);
+  s.co=T.map((c,k)=>T[0].off+k*D-c.off);
+  s.offA=T[0].off+(T.length-1)*D/2;
+  s.base=y;an.push(y+s.offA);y+=Math.max(...T.map((c,k)=>s.co[k]+c.h));
+ });
+ t.off=(an[0]+an[an.length-1])/2;t.h=Math.max(y,st.length?t.off+12+sh:0);
+}
+function place(t,y0){t.y0=y0;t.y=y0+t.off;t.systems.forEach(s=>{s.ay=y0+s.base+s.offA;s.terms.forEach((c,k)=>place(c,y0+s.base+s.co[k]))})}
+function build(c){
+ maxX=0;layout(root,20);place(root,10);
+ const st=`stroke:${c.ink};fill:none;stroke-width:1.3`;let o='';
+ (function walk(t){
+  const n=t.systems.length;
+  if(n>1){const b=t.x+t.ww+16,y1=t.y0+6,y2=t.y0+t.h-6,m=t.y,r=12;if(t.ww>t.w+8)o+=`<line style="${st}" x1="${t.x+t.w+4}" y1="${t.y}" x2="${b-12}" y2="${t.y}"/>`;
+   o+=`<path style="${st}" d="M${b+r} ${y1}Q${b} ${y1} ${b} ${y1+r}L${b} ${m-r}Q${b} ${m} ${b-r} ${m}Q${b} ${m} ${b} ${m+r}L${b} ${y2-r}Q${b} ${y2} ${b+r} ${y2}"/>`}
+  t.systems.forEach(s=>{
+   o+=`<line style="${st}" x1="${s.px}" y1="${s.ay}" x2="${s.bx}" y2="${s.ay}" marker-end="url(#a)"/>`+(c.ui?`<line class="t" data-sid="${s.id}" data-owner="${t.id}" x1="${s.px}" y1="${s.ay}" x2="${s.bx}" y2="${s.ay}" style="stroke:transparent;stroke-width:14"/>`:'');
+   if(s.name){const L=wrap(s.name);o+=`<text class="t" data-sid="${s.id}" data-owner="${t.id}" style="font-size:11px;letter-spacing:.04em;fill:${c.ink};${c.ui&&info(s)?'text-decoration:underline dotted;':''}">${L.map((l,i)=>`<tspan x="${s.px+4}" y="${s.ay-6-(L.length-1-i)*13}">${esc(l)}</tspan>`).join('')}</text>`}
+   const f=s.terms[0].y,l=s.terms[s.terms.length-1].y;
+   if(s.terms.length>1)o+=`<line style="${st}" x1="${s.bx}" y1="${f}" x2="${s.bx}" y2="${l}"/>`;
+   s.terms.forEach(k=>{o+=`<line style="${st}" x1="${s.bx}" y1="${k.y}" x2="${k.x-4}" y2="${k.y}"/>`;walk(k)})});
+  const on=t.id===sel&&c.ui;
+  o+=`<rect class="t" data-id="${t.id}" x="${t.x-4}" y="${t.y-14}" width="${t.w+4}" height="28" rx="6" style="fill:${on?c.accbg:'transparent'};stroke:${on?c.acc:((c.ui&&t===root&&!t.label)?c.ink:'transparent')};stroke-dasharray:${(!on&&c.ui&&t===root&&!t.label)?'3 3':'none'};stroke-opacity:${(!on&&c.ui&&t===root&&!t.label)?.35:1}"/>`;
+  o+=`<text class="t" data-id="${t.id}" x="${t.x}" y="${t.y}" dominant-baseline="central" style="fill:${c.ink}">${esc(t.label||(t===root?'':'–'))}</text>`;
+  if(c.ui&&info(t))o+=`<circle cx="${t.x-2}" cy="${t.y-13}" r="3" style="fill:${c.acc}"/>`;
+  if(t.st.length){const fs=`dominant-baseline="central" style="font-size:14px;fill:${c.ink}"`,fi=`dominant-baseline="central" style="font-size:14px;font-style:${t.ital?'italic':'normal'};fill:${c.ink}"`;o+=`<text x="${t.x+2}" y="${t.y+17}" ${fs}>↘</text>`;t.st.forEach((l,i)=>{o+=`<text x="${t.x+20}" y="${t.y+17+i*LH}" ${fi}>${esc(l)}</text>`})}
+ })(root);
+ const W=maxX+30,H=root.h+20;curW=W;curH=H;
+ return `<svg xmlns="http://www.w3.org/2000/svg" width="${W*(c.z||1)}" height="${H*(c.z||1)}" viewBox="0 0 ${W} ${H}"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L9 5L0 9z" style="fill:${c.ink}"/></marker></defs>${c.bg?`<rect width="100%" height="100%" fill="${c.bg}"/>`:''}${o}</svg>`;
+}
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&quot;'==0?'':'&gt;');
+function draw(){const cv=document.getElementById('cv');cv.innerHTML=build({ink:'var(--ink)',acc:'var(--acc)',accbg:'var(--accbg)',ui:true,z});document.getElementById('zl').textContent=Math.round(z*100)+'%'}
+function find(id,t=root,ps=null,pn=null){
+ if(t.id===id)return{t,ps,pn};
+ for(const s of t.systems)for(const k of s.terms){const r=find(id,k,s,t);if(r)return r}return null}
+function findSys(id,t=root){for(const s of t.systems){if(s.id===id)return s;for(const k of s.terms){const r=findSys(id,k);if(r)return r}}return null}
+const snap=()=>{hist.push(JSON.stringify(root));if(hist.length>60)hist.shift()};
+const info=x=>!!((x.desc||'').trim()||(x.real||'').trim()||(x.ex||'').trim());
+const fields=(o,k)=>`<label>Función discursiva</label><textarea data-f="desc" data-o="${k}" rows="2">${esc(o.desc||'')}</textarea><label>Modo congruente</label><textarea data-f="real" data-o="${k}" rows="2">${esc(o.real||'')}</textarea><label>Ejemplo</label><textarea data-f="ex" data-o="${k}" rows="2">${esc(o.ex||'')}</textarea>`;
+function panel(){
+ const f=find(sel),p=document.getElementById('panel');
+ if(!f){p.innerHTML='<div class="hint">Click a term in the diagram to edit it.</div>';return}
+ const t=f.t;
+ p.innerHTML=`<b>Selected term</b><label>Label</label><input type="text" id="lb" value="${esc(t.label).replace(/"/g,'&quot;')}"><label>Enunciados de realización (uno por línea)</label><textarea data-f="rs" data-o="${t.id}" rows="3" placeholder="+Actor">${esc(t.rs||'')}</textarea><div class="row" style="align-items:center"><label style="display:flex;gap:6px;align-items:center;margin:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="it" ${t.ital?'checked':''}>Cursiva</label><button id="ita">Aplicar a todos</button></div>${fields(t,t.id)}
+ ${t.systems.map(s=>`<div class="sys"><label style="margin-top:0">System name (${s.terms.length} terms)</label>
+ <input type="text" data-s="${s.id}" value="${esc(s.name).replace(/"/g,'&quot;')}" placeholder="e.g. MOOD (optional)">${fields(s,s.id)}
+ <div class="row"><button data-add="${s.id}">+ Term</button><button class="danger" data-ds="${s.id}">Remove system</button></div></div>`).join('')}
+ <div class="row" style="margin-top:12px"><button id="as">+ Add system</button>${f.ps?'<button id="sib">+ Sibling term</button><button id="dt" class="danger">Delete term</button>':''}</div>
+ <div class="hint">Click any term to select it. Add a system to a term to branch further right. A term with two or more systems gets the curly brace (simultaneous choices). Type “–” for an unmarked option. Hover a term or system name in the diagram to see its information.</div>`;
+ const lb=p.querySelector('#lb');lb.onfocus=snap;lb.oninput=e=>{t.label=e.target.value;draw()};
+ p.querySelectorAll('[data-s]').forEach(i=>{i.onfocus=snap;i.oninput=e=>{findSys(i.dataset.s).name=e.target.value;draw()}});
+ const it=p.querySelector('#it');it.onchange=()=>{snap();t.ital=it.checked;draw()};
+ p.querySelector('#ita').onclick=()=>{snap();const v=!!t.ital;(function w(n){n.ital=v;n.systems.forEach(s=>s.terms.forEach(w))})(root);all()};
+ p.querySelectorAll('textarea').forEach(a=>{a.onfocus=snap;a.oninput=e=>{const o=findSys(a.dataset.o)||find(a.dataset.o).t;o[a.dataset.f]=e.target.value;draw()}});
+ p.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snap();const s=findSys(b.dataset.add);const k=N('term');s.terms.push(k);sel=k.id;all()});
+ p.querySelectorAll('[data-ds]').forEach(b=>b.onclick=()=>{snap();t.systems=t.systems.filter(s=>s.id!==b.dataset.ds);all()});
+ p.querySelector('#as').onclick=()=>{snap();const a=N('option 1'),b=N('option 2');t.systems.push(S('',[a,b]));sel=a.id;all()};
+ if(f.ps){p.querySelector('#sib').onclick=()=>{snap();const k=N('term');f.ps.terms.splice(f.ps.terms.indexOf(t)+1,0,k);sel=k.id;all()};
+  p.querySelector('#dt').onclick=()=>{snap();f.ps.terms=f.ps.terms.filter(k=>k!==t);if(!f.ps.terms.length){const g=find(f.pn.id);f.pn.systems=f.pn.systems.filter(s=>s!==f.ps)}sel=f.pn.id;all()}}
+}
+const all=()=>{draw();panel()};
+const dl=async(name,data,type)=>{try{const d=window.claude&&await claude.use('downloads');if(d){await d.save({filename:name,data});return}}catch(e){if(!e||e.code!=='declined')alert('Could not save: '+((e&&e.message)||e));return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click()};
+
+document.getElementById('undo').onclick=()=>{if(hist.length){root=JSON.parse(hist.pop());if(!find(sel))sel=root.id;all()}};
+document.getElementById('ex').onclick=()=>{snap();root=example();sel=root.id;all()};
+document.getElementById('clr').onclick=()=>{snap();root=N('entry condition');sel=root.id;all()};
+document.getElementById('svg').onclick=()=>dl('system-network.svg',build({ink:'#222',acc:'#2f6fdb',accbg:'#fff',bg:'#fff',ui:false}),'image/svg+xml');
+document.getElementById('js').onclick=()=>dl('system-network.json',JSON.stringify(root,null,1),'application/json');
+document.getElementById('ld').onchange=e=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.systems)throw 0;snap();root=d;uid+=100000;sel=root.id;all()}catch(x){alert('Not a valid network file.')}};r.readAsText(e.target.files[0])};
+const cvE=document.getElementById('cv');
+function zoomAt(nz,cx,cy){nz=Math.min(4,Math.max(.15,nz));const px=(cvE.scrollLeft+cx)/z,py=(cvE.scrollTop+cy)/z;z=nz;draw();cvE.scrollLeft=px*z-cx;cvE.scrollTop=py*z-cy}
+const mid=f=>zoomAt(z*f,cvE.clientWidth/2,cvE.clientHeight/2);
+document.getElementById('zi').onclick=()=>mid(1.25);
+document.getElementById('zo').onclick=()=>mid(0.8);
+document.getElementById('z1').onclick=()=>{z=1;draw()};
+document.getElementById('zf').onclick=()=>{z=Math.min(1.5,Math.max(.15,Math.min((cvE.clientWidth-8)/curW,(innerHeight*.78-8)/curH)));draw();cvE.scrollLeft=0;cvE.scrollTop=0};
+cvE.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();const r=cvE.getBoundingClientRect();zoomAt(z*Math.exp(-e.deltaY*.01),e.clientX-r.left,e.clientY-r.top)}},{passive:false});
+let pan=null;
+cvE.addEventListener('mousedown',e=>{if(e.button||(e.target.classList&&e.target.classList.contains('t')))return;pan={x:e.clientX,y:e.clientY,l:cvE.scrollLeft,t:cvE.scrollTop}});
+addEventListener('mousemove',e=>{if(pan){cvE.scrollLeft=pan.l-(e.clientX-pan.x);cvE.scrollTop=pan.t-(e.clientY-pan.y)}});
+addEventListener('mouseup',()=>pan=null);
+const tip=document.getElementById('tip'),hideTip=()=>tip.style.display='none',SEL='[data-id],[data-sid]';
+function showTip(el,x,y){
+ let o,title;
+ if(el.dataset.sid){o=findSys(el.dataset.sid);title=o&&o.name||'System'}else{const f=find(el.dataset.id);o=f&&f.t;title=o&&o.label||'–'}
+ if(!o||!info(o)){hideTip();return}
+ tip.innerHTML='';
+ const add=(txt,cls,tag)=>{const d=document.createElement(tag||'div');if(cls)d.className=cls;d.textContent=txt;tip.appendChild(d)};
+ add(title,'','b');
+ [['Función discursiva',o.desc],['Modo congruente',o.real],['Ejemplo',o.ex]].forEach(([l,v],k)=>{if((v||'').trim()){add(l,'tl');add(v)}});
+ tip.style.display='block';
+ const w=tip.offsetWidth,h=tip.offsetHeight;let T=y+18;if(T+h>innerHeight-8)T=y-h-12;
+ tip.style.left=Math.max(8,Math.min(x+14,innerWidth-w-8))+'px';tip.style.top=Math.max(8,T)+'px';
+}
+cvE.addEventListener('mousemove',e=>{if(pan)return;const el=e.target.closest&&e.target.closest(SEL);el?showTip(el,e.clientX,e.clientY):hideTip()});
+cvE.addEventListener('mouseleave',hideTip);
+cvE.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest(SEL);if(!el)return;sel=el.dataset.id||el.dataset.owner;all();showTip(el,e.clientX,e.clientY)});
+document.addEventListener('click',e=>{if(!(e.target.closest&&e.target.closest(SEL)))hideTip()});
+async function raster(scale,mime){
+ const svg=build({ink:'#222',acc:'#2f6fdb',accbg:'#fff',bg:'#fff',ui:false});
+ const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=()=>j(new Error('render failed'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)});
+ const c=document.createElement('canvas');c.width=Math.ceil(curW*scale);c.height=Math.ceil(curH*scale);
+ const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+ return{blob:await new Promise(r=>c.toBlob(r,mime,.95)),iw:c.width,ih:c.height,pw:Math.round(curW),ph:Math.round(curH)};
+}
+function makePdf(jpg,r){
+ const enc=new TextEncoder(),parts=[],off=[];let len=0;
+ const add=b=>{if(typeof b==='string')b=enc.encode(b);parts.push(b);len+=b.length};
+ const obj=(n,body)=>{off[n]=len;add(n+' 0 obj\n'+body+'\nendobj\n')};
+ add('%PDF-1.4\n');
+ obj(1,'<< /Type /Catalog /Pages 2 0 R >>');obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+ obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${r.pw} ${r.ph}] /Resources << /XObject << /Im 4 0 R >> >> /Contents 5 0 R >>`);
+ off[4]=len;add(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${r.iw} /Height ${r.ih} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);add(jpg);add('\nendstream\nendobj\n');
+ const cs=`q ${r.pw} 0 0 ${r.ph} 0 0 cm /Im Do Q`;
+ obj(5,`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`);
+ const xr=len;let x='xref\n0 6\n0000000000 65535 f \n';for(let i=1;i<=5;i++)x+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+ add(x+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xr}\n%%EOF`);
+ return new Blob(parts,{type:'application/pdf'});
+}
+document.getElementById('png').onclick=async()=>{try{const r=await raster(3,'image/png');dl('system-network.png',r.blob)}catch(e){alert('Could not create PNG: '+e.message)}};
+document.getElementById('pdf').onclick=async()=>{try{const r=await raster(3,'image/jpeg');const jpg=new Uint8Array(await r.blob.arrayBuffer());dl('system-network.pdf',makePdf(jpg,r))}catch(e){alert('Could not create PDF: '+e.message)}};
+async function openNet(url){try{const r=await fetch(url);if(!r.ok)throw 0;const d=await r.json();if(!d.systems)throw 0;snap();root=d;uid+=100000;sel=root.id;all()}catch(e){alert('Could not open that network.')}}
+(async()=>{const ns=document.getElementById('nets');
+ try{const r=await fetch('networks/index.json');if(!r.ok)throw 0;const list=await r.json();
+  list.forEach(n=>{const o=document.createElement('option');o.value='networks/'+n.file;o.textContent=n.title||n.file;ns.appendChild(o)});
+  if(list.length)ns.style.display=''}catch(e){}
+ ns.onchange=()=>{if(ns.value){openNet(ns.value);ns.selectedIndex=0}};
+ const q=new URLSearchParams(location.search).get('net');
+ if(q){const f=q.split('/').pop();if(/^[\w\-. ]+\.json$/.test(f))openNet('networks/'+f)}
+})();
+all();
+</script></body></html>
