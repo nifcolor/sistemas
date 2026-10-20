@@ -52,15 +52,15 @@ const example=()=>N('clause',[
 let root=example(),sel=root.id,hist=[];
 const ctx=document.createElement('canvas').getContext('2d');
 const tw=s=>{ctx.font='15px system-ui,sans-serif';return ctx.measureText(s||'–').width};
-const wrap=n=>{n=n||'';if(n.length<=16||!n.includes(' '))return[n];const w=n.split(' ');let best=1,bd=1e9;for(let i=1;i<w.length;i++){const d=Math.abs(w.slice(0,i).join(' ').length-w.slice(i).join(' ').length);if(d<bd){bd=d;best=i}}return[w.slice(0,best).join(' '),w.slice(best).join(' ')]};
+const wrap=n=>{n=n||'';if(n.includes('\n'))return n.split('\n');if(n.length<=16||!n.includes(' '))return[n];const w=n.split(' ');let best=1,bd=1e9;for(let i=1;i<w.length;i++){const d=Math.abs(w.slice(0,i).join(' ').length-w.slice(i).join(' ').length);if(d<bd){bd=d;best=i}}return[w.slice(0,best).join(' '),w.slice(best).join(' ')]};
 const ROW=40;let maxX=0;
 const LH=16;
 function layout(t,x){
  const st=(t.rs||'').split('\n').map(l=>l.trim()).filter(Boolean);t.st=st;
- t.w=(t===root&&!t.label)?18:tw(t.label)+6;t.sw=st.length?Math.max(...st.map(l=>tw(l)*.93))+22:0;t.ww=Math.max(t.w,t.sw);
+ t.lines=t.label?t.label.split('\n'):(t===root?['']:['–']);t.e=(t.lines.length-1)*8.5;t.w=(t===root&&!t.label)?18:Math.max(...t.lines.map(tw))+6;t.sw=st.length?Math.max(...st.map(l=>tw(l)*.93))+22:0;t.ww=Math.max(t.w,t.sw);
  t.x=x;maxX=Math.max(maxX,x+t.ww);
  const sh=st.length*LH;
- if(!t.systems.length){t.h=ROW+sh;t.off=ROW/2;return}
+ if(!t.systems.length){t.h=ROW+2*t.e+sh;t.off=ROW/2+t.e;return}
  let y=0;const n=t.systems.length,an=[];
  t.systems.forEach(s=>{
   s.px=t.x+(n>1?t.ww+28:t.w+8);
@@ -71,7 +71,7 @@ function layout(t,x){
   s.offA=T[0].off+(T.length-1)*D/2;
   s.base=y;an.push(y+s.offA);y+=Math.max(...T.map((c,k)=>s.co[k]+c.h));
  });
- t.off=(an[0]+an[an.length-1])/2;t.h=Math.max(y,st.length?t.off+12+sh:0);
+ t.off=(an[0]+an[an.length-1])/2;{const d=Math.max(0,ROW/2+t.e-t.off);if(d){t.systems.forEach(s=>s.base+=d);t.off+=d;y+=d}}t.h=Math.max(y,t.off+t.e+ROW/2,st.length?t.off+t.e+12+sh:0);
 }
 function place(t,y0){t.y0=y0;t.y=y0+t.off;t.systems.forEach(s=>{s.ay=y0+s.base+s.offA;s.terms.forEach((c,k)=>place(c,y0+s.base+s.co[k]))})}
 function build(c){
@@ -88,10 +88,10 @@ function build(c){
    if(s.terms.length>1)o+=`<line style="${st}" x1="${s.bx}" y1="${f}" x2="${s.bx}" y2="${l}"/>`;
    s.terms.forEach(k=>{o+=`<line style="${st}" x1="${s.bx}" y1="${k.y}" x2="${k.x-4}" y2="${k.y}"/>`;walk(k)})});
   const on=t.id===sel&&c.ui;
-  o+=`<rect class="t" data-id="${t.id}" x="${t.x-4}" y="${t.y-14}" width="${t.w+4}" height="28" rx="6" style="fill:${on?c.accbg:'transparent'};stroke:${on?c.acc:((c.ui&&t===root&&!t.label)?c.ink:'transparent')};stroke-dasharray:${(!on&&c.ui&&t===root&&!t.label)?'3 3':'none'};stroke-opacity:${(!on&&c.ui&&t===root&&!t.label)?.35:1}"/>`;
-  o+=`<text class="t" data-id="${t.id}" x="${t.x}" y="${t.y}" dominant-baseline="central" style="fill:${c.ink}">${esc(t.label||(t===root?'':'–'))}</text>`;
-  if(c.ui&&info(t))o+=`<circle cx="${t.x-2}" cy="${t.y-13}" r="3" style="fill:${c.acc}"/>`;
-  if(t.st.length){const fs=`dominant-baseline="central" style="font-size:14px;fill:${c.ink}"`,fi=`dominant-baseline="central" style="font-size:14px;font-style:${t.ital?'italic':'normal'};fill:${c.ink}"`;o+=`<text x="${t.x+2}" y="${t.y+17}" ${fs}>↘</text>`;t.st.forEach((l,i)=>{o+=`<text x="${t.x+20}" y="${t.y+17+i*LH}" ${fi}>${esc(l)}</text>`})}
+  o+=`<rect class="t" data-id="${t.id}" x="${t.x-4}" y="${t.y-14-t.e}" width="${t.w+4}" height="${28+2*t.e}" rx="6" style="fill:${on?c.accbg:'transparent'};stroke:${on?c.acc:((c.ui&&t===root&&!t.label)?c.ink:'transparent')};stroke-dasharray:${(!on&&c.ui&&t===root&&!t.label)?'3 3':'none'};stroke-opacity:${(!on&&c.ui&&t===root&&!t.label)?.35:1}"/>`;
+  o+=`<text class="t" data-id="${t.id}" x="${t.x}" y="${t.y}" dominant-baseline="central" style="fill:${c.ink}">${t.lines.map((l,i)=>`<tspan x="${t.x}" y="${t.y-t.e+i*17}">${esc(l)}</tspan>`).join('')}</text>`;
+  if(c.ui&&info(t))o+=`<circle cx="${t.x-2}" cy="${t.y-13-t.e}" r="3" style="fill:${c.acc}"/>`;
+  if(t.st.length){const fs=`dominant-baseline="central" style="font-size:14px;fill:${c.ink}"`,fi=`dominant-baseline="central" style="font-size:14px;font-style:${t.ital?'italic':'normal'};fill:${c.ink}"`;o+=`<text x="${t.x+2}" y="${t.y+17+t.e}" ${fs}>↘</text>`;t.st.forEach((l,i)=>{o+=`<text x="${t.x+20}" y="${t.y+17+t.e+i*LH}" ${fi}>${esc(l)}</text>`})}
  })(root);
  const W=maxX+30,H=root.h+20;curW=W;curH=H;
  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W*(c.z||1)}" height="${H*(c.z||1)}" viewBox="0 0 ${W} ${H}"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L9 5L0 9z" style="fill:${c.ink}"/></marker></defs>${c.bg?`<rect width="100%" height="100%" fill="${c.bg}"/>`:''}${o}</svg>`;
@@ -105,21 +105,22 @@ function findSys(id,t=root){for(const s of t.systems){if(s.id===id)return s;for(
 const snap=()=>{hist.push(JSON.stringify(root));if(hist.length>60)hist.shift()};
 const info=x=>!!((x.desc||'').trim()||(x.real||'').trim()||(x.ex||'').trim());
 const fields=(o,k)=>`<label>Función discursiva</label><textarea data-f="desc" data-o="${k}" rows="2">${esc(o.desc||'')}</textarea><label>Modo congruente</label><textarea data-f="real" data-o="${k}" rows="2">${esc(o.real||'')}</textarea><label>Ejemplo</label><textarea data-f="ex" data-o="${k}" rows="2">${esc(o.ex||'')}</textarea>`;
+const nl=el=>{el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(e.ctrlKey||e.metaKey||e.shiftKey){el.setRangeText('\n',el.selectionStart,el.selectionEnd,'end');el.dispatchEvent(new Event('input'))}}});el.addEventListener('input',()=>{el.rows=el.value.split('\n').length})};
 function panel(){
  const f=find(sel),p=document.getElementById('panel');
  if(!f){p.innerHTML='<div class="hint">Click a term in the diagram to edit it.</div>';return}
  const t=f.t;
- p.innerHTML=`<b>Selected term</b><label>Label</label><input type="text" id="lb" value="${esc(t.label).replace(/"/g,'&quot;')}"><label>Enunciados de realización (uno por línea)</label><textarea data-f="rs" data-o="${t.id}" rows="3" placeholder="+Actor">${esc(t.rs||'')}</textarea><div class="row" style="align-items:center"><label style="display:flex;gap:6px;align-items:center;margin:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="it" ${t.ital?'checked':''}>Cursiva</label><button id="ita">Aplicar a todos</button></div>${fields(t,t.id)}
+ p.innerHTML=`<b>Selected term</b><label>Label <span style="opacity:.7">(Ctrl+Enter: new line)</span></label><textarea id="lb" rows="${(t.label||'').split('\n').length}" style="resize:none">${esc(t.label||'')}</textarea><label>Enunciados de realización (uno por línea)</label><textarea data-f="rs" data-o="${t.id}" rows="3" placeholder="+Actor">${esc(t.rs||'')}</textarea><div class="row" style="align-items:center"><label style="display:flex;gap:6px;align-items:center;margin:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="it" ${t.ital?'checked':''}>Cursiva</label><button id="ita">Aplicar a todos</button></div>${fields(t,t.id)}
  ${t.systems.map(s=>`<div class="sys"><label style="margin-top:0">System name (${s.terms.length} terms)</label>
- <input type="text" data-s="${s.id}" value="${esc(s.name).replace(/"/g,'&quot;')}" placeholder="e.g. MOOD (optional)">${fields(s,s.id)}
+ <textarea data-s="${s.id}" rows="${(s.name||'').split('\n').length}" style="resize:none" placeholder="e.g. MOOD (optional)">${esc(s.name||'')}</textarea>${fields(s,s.id)}
  <div class="row"><button data-add="${s.id}">+ Term</button><button class="danger" data-ds="${s.id}">Remove system</button></div></div>`).join('')}
  <div class="row" style="margin-top:12px"><button id="as">+ Add system</button>${f.ps?'<button id="sib">+ Sibling term</button><button id="dt" class="danger">Delete term</button>':''}</div>
  <div class="hint">Click any term to select it. Add a system to a term to branch further right. A term with two or more systems gets the curly brace (simultaneous choices). Type “–” for an unmarked option. Hover a term or system name in the diagram to see its information.</div>`;
- const lb=p.querySelector('#lb');lb.onfocus=snap;lb.oninput=e=>{t.label=e.target.value;draw()};
- p.querySelectorAll('[data-s]').forEach(i=>{i.onfocus=snap;i.oninput=e=>{findSys(i.dataset.s).name=e.target.value;draw()}});
+ const lb=p.querySelector('#lb');lb.onfocus=snap;lb.oninput=e=>{t.label=e.target.value;draw()};nl(lb);
+ p.querySelectorAll('[data-s]').forEach(i=>{i.onfocus=snap;i.oninput=e=>{findSys(i.dataset.s).name=e.target.value;draw()};nl(i)});
  const it=p.querySelector('#it');it.onchange=()=>{snap();t.ital=it.checked;draw()};
  p.querySelector('#ita').onclick=()=>{snap();const v=!!t.ital;(function w(n){n.ital=v;n.systems.forEach(s=>s.terms.forEach(w))})(root);all()};
- p.querySelectorAll('textarea').forEach(a=>{a.onfocus=snap;a.oninput=e=>{const o=findSys(a.dataset.o)||find(a.dataset.o).t;o[a.dataset.f]=e.target.value;draw()}});
+ p.querySelectorAll('textarea[data-f]').forEach(a=>{a.onfocus=snap;a.oninput=e=>{const o=findSys(a.dataset.o)||find(a.dataset.o).t;o[a.dataset.f]=e.target.value;draw()}});
  p.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snap();const s=findSys(b.dataset.add);const k=N('term');s.terms.push(k);sel=k.id;all()});
  p.querySelectorAll('[data-ds]').forEach(b=>b.onclick=()=>{snap();t.systems=t.systems.filter(s=>s.id!==b.dataset.ds);all()});
  p.querySelector('#as').onclick=()=>{snap();const a=N('option 1'),b=N('option 2');t.systems.push(S('',[a,b]));sel=a.id;all()};
@@ -150,7 +151,7 @@ addEventListener('mouseup',()=>pan=null);
 const tip=document.getElementById('tip'),hideTip=()=>tip.style.display='none',SEL='[data-id],[data-sid]';
 function showTip(el,x,y){
  let o,title;
- if(el.dataset.sid){o=findSys(el.dataset.sid);title=o&&o.name||'System'}else{const f=find(el.dataset.id);o=f&&f.t;title=o&&o.label||'–'}
+ if(el.dataset.sid){o=findSys(el.dataset.sid);title=(o&&o.name||'System').replace(/\n/g,' ')}else{const f=find(el.dataset.id);o=f&&f.t;title=(o&&o.label||'–').replace(/\n/g,' ')}
  if(!o||!info(o)){hideTip();return}
  tip.innerHTML='';
  const add=(txt,cls,tag)=>{const d=document.createElement(tag||'div');if(cls)d.className=cls;d.textContent=txt;tip.appendChild(d)};
