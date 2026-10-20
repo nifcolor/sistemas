@@ -105,7 +105,7 @@ function findSys(id,t=root){for(const s of t.systems){if(s.id===id)return s;for(
 const snap=()=>{hist.push(JSON.stringify(root));if(hist.length>60)hist.shift()};
 const info=x=>!!((x.desc||'').trim()||(x.real||'').trim()||(x.ex||'').trim());
 const fields=(o,k)=>`<label>Función discursiva</label><textarea data-f="desc" data-o="${k}" rows="2">${esc(o.desc||'')}</textarea><label>Modo congruente</label><textarea data-f="real" data-o="${k}" rows="2">${esc(o.real||'')}</textarea><label>Ejemplo</label><textarea data-f="ex" data-o="${k}" rows="2">${esc(o.ex||'')}</textarea>`;
-const nl=el=>{el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(e.ctrlKey||e.metaKey||e.shiftKey){el.setRangeText('\n',el.selectionStart,el.selectionEnd,'end');el.dispatchEvent(new Event('input'))}}});el.addEventListener('input',()=>{el.rows=el.value.split('\n').length})};
+const nl=el=>{el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey){el.setRangeText('\n',el.selectionStart,el.selectionEnd,'end');el.dispatchEvent(new Event('input'))}}});el.addEventListener('input',()=>{el.rows=el.value.split('\n').length});const b=document.createElement('button');b.type='button';b.textContent='↵ New line';b.style.cssText='margin-top:4px;font-size:12px;padding:3px 8px';b.onclick=()=>{el.focus();el.setRangeText('\n',el.selectionStart,el.selectionEnd,'end');el.dispatchEvent(new Event('input'))};el.after(b)};
 function panel(){
  const f=find(sel),p=document.getElementById('panel');
  if(!f){p.innerHTML='<div class="hint">Click a term in the diagram to edit it.</div>';return}
