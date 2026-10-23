@@ -79,7 +79,7 @@ function build(c){
  const st=`stroke:${c.ink};fill:none;stroke-width:1.3`;let o='';
  (function walk(t){
   const n=t.systems.length;
-  if(n>1){const b=t.x+t.ww+20,y1=t.y0+6,y2=t.y0+t.h-6,m=t.y,r=12;if(t.ww>t.w+8)o+=`<line style="${st}" x1="${t.x+t.w-2}" y1="${t.y}" x2="${b-12}" y2="${t.y}"/>`;
+  if(n>1){const b=t.x+t.ww+20,y1=t.systems[0].ay-14,y2=t.systems[n-1].ay+14,m=t.y,r=12;if(t.ww>t.w+8)o+=`<line style="${st}" x1="${t.x+t.w-2}" y1="${t.y}" x2="${b-12}" y2="${t.y}"/>`;
    o+=`<path style="${st}" d="M${b+r} ${y1}Q${b} ${y1} ${b} ${y1+r}L${b} ${m-r}Q${b} ${m} ${b-r} ${m}Q${b} ${m} ${b} ${m+r}L${b} ${y2-r}Q${b} ${y2} ${b+r} ${y2}"/>`}
   t.systems.forEach(s=>{
    o+=`<line style="${st}" x1="${s.px}" y1="${s.ay}" x2="${s.bx}" y2="${s.ay}" marker-end="url(#a)"/>`+(c.ui?`<line class="t" data-sid="${s.id}" data-owner="${t.id}" x1="${s.px}" y1="${s.ay}" x2="${s.bx}" y2="${s.ay}" style="stroke:transparent;stroke-width:14"/>`:'');
